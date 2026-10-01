@@ -439,13 +439,12 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8000))
     print("=" * 50)
     print("DevStudio Bot Server (Bilingual)")
-    print("Port: " + str(port))
+    print("Open: http://localhost:8000")
+    print("Stop: Ctrl+C")
     print("=" * 50)
     try:
-        HTTPServer(("0.0.0.0", port), H).serve_forever()
+        HTTPServer(("0.0.0.0", 8000), H).serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")

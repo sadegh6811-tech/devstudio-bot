@@ -439,7 +439,14 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    import os
+    print("=" * 50)
+    print("DevStudio Bot Server (Bilingual)")
+    print("Open: http://localhost:8000")
+    print("Stop: Ctrl+C")
+    print("=" * 50)
+    try:
+        import os
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print("=" * 50)
     print("DevStudio Bot Server (Bilingual)")
