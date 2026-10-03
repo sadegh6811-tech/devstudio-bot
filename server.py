@@ -148,7 +148,9 @@ def process(query):
         return "خواهش می‌کنم! سوال دیگری دارید؟" if lang == "fa" else "You're welcome!"
     if any(k in tl for k in ["bye", "خداحافظ"]):
         return "خداحافظ!" if lang == "fa" else "Goodbye!"
-    if len(words) <= 5 and any(k in tl for k in ["hello", "hi", "سلام", "درود"]):
+    greeting_only = len(words) <= 3 and any(k in tl for k in ["hello", "hi", "hey", "سلام", "درود"])
+    has_question = any(k in tl for k in ["قیمت", "هزینه", "چقدر", "چیه", "چیست", "?", "؟", "price", "cost", "how much", "خدمات", "services", "کار"])
+    if greeting_only and not has_question:
         return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟" if lang == "fa" else "Hello! 👋 Welcome to DevStudio."
     faq = search_faq(query, lang)
     if faq:
