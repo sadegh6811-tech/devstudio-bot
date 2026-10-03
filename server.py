@@ -1,517 +1,4 @@
 #!/usr/bin/env python3
-import json, re
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from datetime import datetime
-from urllib.parse import urlparse
-
-
-# ============================================================
-# داده‌های FAQ دوزبانه
-# ============================================================
-
-FAQ_DATA = [
-    {
-        "q_fa": "سیاست بازگشت کالا چیست؟",
-        "a_fa": "۳۰ روز ضمانت بازگشت وجه بدون هیچ سوالی داریم.",
-        "q_en": "What is your refund policy?",
-        "a_en": "We offer a 30-day money-back guarantee, no questions asked.",
-        "kw_fa": ["بازگشت", "وجه", "پول", "پس", "مرجوع", "سیاست"],
-        "kw_en": ["refund", "return", "money back", "policy"]
-    },
-    {
-        "q_fa": "ارسال چقدر طول می‌کشد؟",
-        "a_fa": "ارسال استاندارد ۵ تا ۷ روز کاری. ارسال اکسپرس ۲ تا ۳ روز.",
-        "q_en": "How long does shipping take?",
-        "a_en": "Standard shipping takes 5-7 business days. Express takes 2-3 days.",
-        "kw_fa": ["ارسال", "تحویل", "چقدر", "طول", "می‌کشد", "زمان"],
-        "kw_en": ["shipping", "delivery", "how long", "arrive"]
-    },
-    {
-        "q_fa": "آیا به خارج از کشور ارسال می‌کنید؟",
-        "a_fa": "بله، ما به بیش از ۵۰ کشور جهان ارسال می‌کنیم.",
-        "q_en": "Do you ship internationally?",
-        "a_en": "Yes, we ship to over 50 countries worldwide.",
-        "kw_fa": ["خارج", "کشور", "بین‌الملل", "جهان", "ارسال"],
-        "kw_en": ["international", "country", "worldwide", "abroad"]
-    },
-    {
-        "q_fa": "چگونه با پشتیبانی تماس بگیرم؟",
-        "a_fa": "می‌توانید به support@devstudio.com ایمیل بزنید یا از چت زنده استفاده کنید.",
-        "q_en": "How can I contact support?",
-        "a_en": "Email support@devstudio.com or use the live chat on our website.",
-        "kw_fa": ["تماس", "پشتیبانی", "ارتباط", "ایمیل", "چت"],
-        "kw_en": ["contact", "email", "reach", "support"]
-    },
-    {
-        "q_fa": "چه خدماتی ارائه می‌دهید؟",
-        "a_fa": "برنامه‌نویسی پایتون، ساخت اپلیکیشن موبایل، طراحی وب و راهکارهای هوش مصنوعی.",
-        "q_en": "What services do you offer?",
-        "a_en": "Python development, mobile apps, web design, and AI solutions.",
-        "kw_fa": ["خدمات", "ارائه", "چه", "کار", "می‌کنید"],
-        "kw_en": ["services", "offer", "provide", "what do you"]
-    },
-    {
-        "q_fa": "قیمت‌ها چگونه است؟",
-        "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند. برای قیمت دقیق با ما تماس بگیرید.",
-        "q_en": "What is your pricing?",
-        "a_en": "Projects start from $500. Contact us for a custom quote.",
-        "kw_fa": ["قیمت", "هزینه", "چقدر", "دلار", "تومان"],
-        "kw_en": ["price", "pricing", "cost", "how much"]
-    },
-    {
-        "q_fa": "از چه تکنولوژی‌هایی استفاده می‌کنید؟",
-        "a_fa": "پایتون، جنگو، FastAPI، React، Next.js و ابزارهای هوش مصنوعی.",
-        "q_en": "What technologies do you use?",
-        "a_en": "Python, Django, FastAPI, React, Next.js, and modern AI tools.",
-        "kw_fa": ["تکنولوژی", "فناوری", "ابزار", "استفاده", "زبان"],
-        "kw_en": ["technology", "stack", "tools", "tech"]
-    },
-    {
-        "q_fa": "پروژه چقدر زمان می‌برد؟",
-        "a_fa": "بستگی به حجم دارد. سایت ساده ۲ تا ۴ هفته، اپلیکیشن پیچیده ۲ تا ۶ ماه.",
-        "q_en": "How long does a project take?",
-        "a_en": "Simple websites: 2-4 weeks. Complex apps: 2-6 months.",
-        "kw_fa": ["پروژه", "زمان", "چقدر", "مدت", "طول"],
-        "kw_en": ["project", "timeline", "duration", "how long"]
-    },
-]
-
-
-# ============================================================
-# داده‌های سفارشات
-# ============================================================
-
-ORDERS = {
-    "ORD-482910": {"status_fa": "ارسال شده", "status_en": "Shipped",
-                   "tracking": "TRK-1234567890",
-                   "eta_fa": "۲۵ مارس ۲۰۲۵", "eta_en": "March 25, 2025"},
-    "ORD-123456": {"status_fa": "در حال پردازش", "status_en": "Processing",
-                   "tracking": None,
-                   "eta_fa": "۲۲ مارس ۲۰۲۵", "eta_en": "March 22, 2025"},
-    "ORD-789012": {"status_fa": "تحویل داده شده", "status_en": "Delivered",
-                   "tracking": "TRK-9876543210",
-                   "eta_fa": "۱۸ مارس ۲۰۲۵", "eta_en": "March 18, 2025"},
-    "ORD-555555": {"status_fa": "لغو شده", "status_en": "Cancelled",
-                   "tracking": None,
-                   "eta_fa": "بازگشت وجه در حال انجام", "eta_en": "Refund in progress"},
-}
-
-
-# ============================================================
-# تشخیص زبان
-# ============================================================
-
-def detect_lang(text):
-    """تشخیص زبان: 'fa' یا 'en'"""
-    if not text:
-        return "en"
-    # اگر حداقل یک حرف فارسی/عربی باشد → فارسی
-    if re.search(r'[\u0600-\u06FF]', text):
-        return "fa"
-    # کلمات کلیدی فارسی
-    persian_words = ["سلام", "ممنون", "سفارش", "قیمت", "ارسال", "کمک"]
-    if any(w in text for w in persian_words):
-        return "fa"
-    return "en"
-
-
-# ============================================================
-# توابع کمکی
-# ============================================================
-
-def norm(s):
-    s = s.lower().strip()
-    s = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', s)
-    return re.sub(r'\s+', ' ', s)
-
-
-def get_oid(text):
-    m = re.search(r'ORD[-\s]?(\d{4,})', text, re.IGNORECASE)
-    return "ORD-" + m.group(1) if m else None
-
-
-# ============================================================
-# جستجوی FAQ دوزبانه
-# ============================================================
-
-def search_faq(query, lang):
-    q = norm(query)
-    if not q:
-        return "لطفاً سوال خود را بنویسید." if lang == "fa" else "Please type your question."
-
-    q_words = set(q.split())
-    results = []
-
-    for item in FAQ_DATA:
-        if lang == "fa":
-            target_q = norm(item["q_fa"])
-            keywords = item["kw_fa"]
-        else:
-            target_q = norm(item["q_en"])
-            keywords = item["kw_en"]
-
-        target_words = set(target_q.split())
-        overlap = len(q_words & target_words) / max(len(q_words), 1)
-
-        kw_match = sum(1 for k in keywords if k in q)
-        kw_score = min(kw_match * 0.4, 1.0)
-
-        score = max(overlap, kw_score)
-        if score > 0.25:
-            results.append((score, item))
-
-    results.sort(reverse=True, key=lambda x: x[0])
-
-    if results:
-        parts = []
-        for _, item in results[:2]:
-            if lang == "fa":
-                parts.append("س: " + item["q_fa"] + "\nج: " + item["a_fa"])
-            else:
-                parts.append("Q: " + item["q_en"] + "\nA: " + item["a_en"])
-        return "\n\n".join(parts)
-
-    if lang == "fa":
-        return "متأسفم، پاسخ مناسبی پیدا نکردم. لطفاً سوالتان را بازنویسی کنید یا کلمه «انسان» را بنویسید تا به اپراتور وصل شوید."
-    return "Sorry, no answer found. Please rephrase or type 'human' to talk to an agent."
-
-
-# ============================================================
-# بررسی سفارش دوزبانه
-# ============================================================
-
-def check_order(oid, lang):
-    if not oid:
-        return "لطفاً شماره سفارش معتبر وارد کنید." if lang == "fa" else "Please provide a valid order ID."
-
-    order = ORDERS.get(oid.upper())
-    if not order:
-        if lang == "fa":
-            return "سفارش " + oid + " در سیستم پیدا نشد.\nلطفاً شماره را بررسی کنید یا کلمه «انسان» را بنویسید."
-        return "Order " + oid + " was not found.\nVerify the ID or type 'human'."
-
-    if lang == "fa":
-        lines = ["سفارش " + oid, "وضعیت: " + order["status_fa"]]
-        if order["tracking"]:
-            lines.append("کد رهگیری: " + order["tracking"])
-        lines.append("زمان تحویل: " + order["eta_fa"])
-    else:
-        lines = ["Order " + oid, "Status: " + order["status_en"]]
-        if order["tracking"]:
-            lines.append("Tracking: " + order["tracking"])
-        lines.append("ETA: " + order["eta_en"])
-
-    return "\n".join(lines)
-
-
-# ============================================================
-# ارجاع به انسان
-# ============================================================
-
-def escalate(reason, lang):
-    if lang == "fa":
-        return "شما به اپراتور انسانی متصل می‌شوید.\nدلیل: " + reason + "\nزمان انتظار: حدود ۱۵ دقیقه."
-    return "Transferring you to a human support agent.\nReason: " + reason + "\nEstimated wait: 15 minutes."
-
-
-# ============================================================
-# کلیدواژه‌های دوزبانه
-# ============================================================
-
-HUMAN_KW = ["human", "agent", "person", "manager", "operator", "representative",
-            "انسان", "اپراتور", "پشتیبان", "مدیر", "کارشناس", "آدم"]
-
-GREETING_KW = ["hello", "hi", "hey", "greetings", "good morning",
-               "سلام", "درود", "صبح بخیر", "عصر بخیر", "شب بخیر"]
-
-THANKS_KW = ["thanks", "thank you", "thx", "appreciate",
-             "ممنون", "متشکر", "سپاس", "مرسی"]
-
-BYE_KW = ["bye", "goodbye", "see you", "farewell",
-          "خداحافظ", "بدرود", "خدانگهدار"]
-
-
-# ============================================================
-# تشخیص نیت
-# ============================================================
-
-def route_intent(text):
-    if not text or not text.strip():
-        return "empty", text, "en"
-
-    lang = detect_lang(text)
-    tl = text.lower().strip()
-    words = tl.split()
-
-    # سفارش
-    oid = get_oid(text)
-    if oid:
-        return "order", oid, lang
-
-    # انسان
-    if any(k in tl for k in HUMAN_KW):
-        return "human", text, lang
-
-    # تشکر
-    if any(k in tl for k in THANKS_KW):
-        return "thanks", text, lang
-
-    # خداحافظی
-    if any(k in tl for k in BYE_KW):
-        return "bye", text, lang
-
-    # سلام (پیام کوتاه)
-    if len(words) <= 4 and any(k in tl for k in GREETING_KW):
-        return "greeting", text, lang
-
-    return "faq", text, lang
-
-
-# ============================================================
-# پردازش پیام
-# ============================================================
-
-def process(query):
-    if not query or not query.strip():
-        return "لطفاً یک پیام بنویسید." if detect_lang(query) == "fa" else "Please type a message."
-
-    intent, data, lang = route_intent(query)
-
-    if intent == "order":
-        return check_order(data, lang)
-
-    if intent == "human":
-        return escalate(data, lang)
-
-    if intent == "thanks":
-        if lang == "fa":
-            return "خواهش می‌کنم! سوال دیگری دارید؟"
-        return "You're welcome! Anything else I can help with?"
-
-    if intent == "bye":
-        if lang == "fa":
-            return "خداحافظ! روز خوبی داشته باشید."
-        return "Goodbye! Have a great day."
-
-    if intent == "greeting":
-        if lang == "fa":
-            return "سلام! به پشتیبانی DevStudio خوش آمدید.\nچطور می‌توانم کمکتان کنم؟"
-        return "Hello! Welcome to DevStudio Support.\nHow can I help you today?"
-
-    return search_faq(data, lang)
-
-
-# ============================================================
-# HTML رابط چت
-# ============================================================
-
-HTML = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DevStudio Bot</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#0A0E27,#1a1f3a);height:100vh;display:flex;flex-direction:column;color:#fff;overflow:hidden}
-header{padding:16px 20px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:12px}
-.logo{font-size:1.2rem;font-weight:800;background:linear-gradient(135deg,#6C63FF,#00D9A3);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.status{font-size:.75rem;color:#00D9A3;margin-left:auto}
-#chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
-.msg{max-width:85%;padding:12px 16px;border-radius:16px;line-height:1.6;font-size:.95rem;white-space:pre-wrap;word-wrap:break-word}
-.user{align-self:flex-end;background:linear-gradient(135deg,#6C63FF,#00D9A3);border-bottom-right-radius:4px}
-.bot{align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-bottom-left-radius:4px}
-.hint{color:rgba(255,255,255,.4);font-size:.85rem;text-align:center;padding:20px}
-#input-area{padding:14px;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1);display:flex;gap:10px}
-#input{flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:14px 18px;border-radius:12px;font-size:1rem;outline:none;font-family:inherit}
-#input::placeholder{color:rgba(255,255,255,.4)}
-#send{background:linear-gradient(135deg,#6C63FF,#00D9A3);color:#fff;border:none;padding:0 24px;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1rem}
-#send:active{transform:scale(.95)}
-</style>
-</head>
-<body>
-<header>
-  <div class="logo">DevStudio Bot</div>
-  <div class="status">Online / آنلاین</div>
-</header>
-<div id="chat">
-  <div class="hint">برای شروع پیام بنویسید. Try: hello / سلام</div>
-</div>
-<div id="input-area">
-  <input id="input" type="text" placeholder="پیام خود را بنویسید..." autocomplete="off">
-  <button id="send">Send / ارسال</button>
-</div>
-<script>
-var chat = document.getElementById('chat');
-var input = document.getElementById('input');
-var send = document.getElementById('send');
-var hint = document.querySelector('.hint');
-
-function addMsg(text, sender) {
-  if (hint) { hint.remove(); hint = null; }
-  var d = document.createElement('div');
-  d.className = 'msg ' + sender;
-  d.textContent = text;
-  chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-async function sendMsg() {
-  var t = input.value.trim();
-  if (!t) return;
-  addMsg(t, 'user');
-  input.value = '';
-  input.disabled = true;
-  send.disabled = true;
-  try {
-    var r = await fetch('/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: t, user_id: 'web'})
-    });
-    var data = await r.json();
-    addMsg(data.reply, 'bot');
-  } catch(e) {
-    addMsg('Error: ' + e.message, 'bot');
-  }
-  input.disabled = false;
-  send.disabled = false;
-  input.focus();
-}
-
-send.addEventListener('click', sendMsg);
-input.addEventListener('keypress', function(e) {
-  if (e.key === 'Enter') sendMsg();
-});
-input.focus();
-</script>
-</body>
-</html>"""
-
-
-# ============================================================
-# HTTP Server
-# ============================================================
-
-class H(BaseHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
-
-    def do_GET(self):
-        p = urlparse(self.path).path
-        if p in ["/", "/index.html"]:
-            self._s(200, "text/html; charset=utf-8", HTML)
-        elif p == "/health":
-            self._s(200, "application/json", json.dumps({"status": "healthy"}))
-        else:
-            self._s(404, "text/plain", "Not Found")
-
-    def do_POST(self):
-        p = urlparse(self.path).path
-        if p == "/chat":
-            try:
-                n = int(self.headers.get("Content-Length", 0))
-                b = self.rfile.read(n).decode("utf-8")
-                d = json.loads(b)
-                m = d.get("message", "")
-                r = process(m)
-                intent, _, lang = route_intent(m)
-                resp = {
-                    "reply": r,
-                    "intent": intent,
-                    "lang": lang,
-                    "time": datetime.now().isoformat(),
-                    "user_id": "web"
-                }
-                self._s(200, "application/json", json.dumps(resp, ensure_ascii=False))
-            except Exception as e:
-                self._s(500, "application/json", json.dumps({"error": str(e)}, ensure_ascii=False))
-        else:
-            self._s(404, "text/plain", "Not Found")
-
-    def _s(self, code, ct, body):
-        self.send_response(code)
-        self.send_header("Content-Type", ct)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Content-Length", str(len(body.encode("utf-8"))))
-        self.end_headers()
-        self.wfile.write(body.encode("utf-8"))
-
-
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8000))
-    print("=" * 50)
-    print("DevStudio Bot Server (Bilingual)")
-    print("Port: " + str(port))
-    print("=" * 50)
-    try:
-        HTTPServer(("0.0.0.0", port), H).serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopped.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#!/usr/bin/env python3
-# server.py - DevStudio Support Bot v2.1
-# CORS enabled for Vercel
-
 import json
 import re
 import os
@@ -521,86 +8,14 @@ from urllib.parse import urlparse
 
 
 FAQ_DATA = [
-    {
-        "q_fa": "سیاست بازگشت کالا چیست؟",
-        "a_fa": "۳۰ روز ضمانت بازگشت وجه بدون هیچ سوالی داریم.",
-        "q_en": "What is your refund policy?",
-        "a_en": "We offer a 30-day money-back guarantee.",
-        "kw_fa": ["بازگشت", "وجه", "پول", "پس", "مرجوع", "سیاست"],
-        "kw_en": ["refund", "return", "money back", "policy"]
-    },
-    {
-        "q_fa": "ارسال چقدر طول می‌کشد؟",
-        "a_fa": "ارسال استاندارد ۵ تا ۷ روز کاری. ارسال اکسپرس ۲ تا ۳ روز.",
-        "q_en": "How long does shipping take?",
-        "a_en": "Standard shipping: 5-7 business days. Express: 2-3 days.",
-        "kw_fa": ["ارسال", "تحویل", "چقدر", "طول", "زمان"],
-        "kw_en": ["shipping", "delivery", "how long", "arrive"]
-    },
-    {
-        "q_fa": "آیا به خارج از کشور ارسال می‌کنید؟",
-        "a_fa": "بله، ما به بیش از ۵۰ کشور جهان ارسال می‌کنیم.",
-        "q_en": "Do you ship internationally?",
-        "a_en": "Yes, we ship to over 50 countries worldwide.",
-        "kw_fa": ["خارج", "کشور", "بین‌الملل", "جهان"],
-        "kw_en": ["international", "country", "worldwide", "abroad"]
-    },
-    {
-        "q_fa": "چگونه با پشتیبانی تماس بگیرم؟",
-        "a_fa": "می‌توانید به support@devstudio.com ایمیل بزنید یا از چت زنده استفاده کنید.",
-        "q_en": "How can I contact support?",
-        "a_en": "Email support@devstudio.com or use the live chat.",
-        "kw_fa": ["تماس", "پشتیبانی", "ارتباط", "ایمیل", "چت"],
-        "kw_en": ["contact", "email", "reach", "support"]
-    },
-    {
-        "q_fa": "چه خدماتی ارائه می‌دهید؟",
-        "a_fa": "برنامه‌نویسی پایتون، ساخت اپلیکیشن موبایل، طراحی وب و راهکارهای هوش مصنوعی.",
-        "q_en": "What services do you offer?",
-        "a_en": "Python development, mobile apps, web design, and AI solutions.",
-        "kw_fa": ["خدمات", "ارائه", "چه", "کار", "می‌کنید"],
-        "kw_en": ["services", "offer", "provide", "what do you"]
-    },
-    {
-        "q_fa": "قیمت‌ها چگونه است؟",
-        "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند. برای قیمت دقیق با ما تماس بگیرید.",
-        "q_en": "What is your pricing?",
-        "a_en": "Projects start from $500. Contact us for a custom quote.",
-        "kw_fa": ["قیمت", "هزینه", "چقدر", "دلار"],
-        "kw_en": ["price", "pricing", "cost", "how much"]
-    },
-    {
-        "q_fa": "از چه تکنولوژی‌هایی استفاده می‌کنید؟",
-        "a_fa": "پایتون، جنگو، FastAPI، React، Next.js و ابزارهای هوش مصنوعی.",
-        "q_en": "What technologies do you use?",
-        "a_en": "Python, Django, FastAPI, React, Next.js, and AI tools.",
-        "kw_fa": ["تکنولوژی", "فناوری", "ابزار", "زبان"],
-        "kw_en": ["technology", "stack", "tools", "tech"]
-    },
-    {
-        "q_fa": "پروژه چقدر زمان می‌برد؟",
-        "a_fa": "بستگی به حجم دارد. سایت ساده ۲ تا ۴ هفته، اپلیکیشن پیچیده ۲ تا ۶ ماه.",
-        "q_en": "How long does a project take?",
-        "a_en": "Simple websites: 2-4 weeks. Complex apps: 2-6 months.",
-        "kw_fa": ["پروژه", "زمان", "چقدر", "مدت", "طول"],
-        "kw_en": ["project", "timeline", "duration", "how long"]
-    },
+    {"q_fa": "سیاست بازگشت کالا چیست؟", "a_fa": "۳۰ روز ضمانت بازگشت وجه داریم.", "q_en": "What is your refund policy?", "a_en": "30-day money-back guarantee.", "kw_fa": ["بازگشت", "وجه", "پول"], "kw_en": ["refund", "return"]},
+    {"q_fa": "چه خدماتی ارائه می‌دهید؟", "a_fa": "پایتون، اپلیکیشن موبایل، طراحی وب و هوش مصنوعی.", "q_en": "What services do you offer?", "a_en": "Python, mobile apps, web design, and AI.", "kw_fa": ["خدمات", "ارائه"], "kw_en": ["services", "offer"]},
+    {"q_fa": "قیمت‌ها چگونه است؟", "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند.", "q_en": "What is your pricing?", "a_en": "Projects start from $500.", "kw_fa": ["قیمت", "هزینه"], "kw_en": ["price", "cost"]},
 ]
 
-
 ORDERS = {
-    "ORD-482910": {"status_fa": "ارسال شده", "status_en": "Shipped",
-                   "tracking": "TRK-1234567890",
-                   "eta_fa": "۲۵ مارس ۲۰۲۵", "eta_en": "March 25, 2025"},
-    "ORD-123456": {"status_fa": "در حال پردازش", "status_en": "Processing",
-                   "tracking": None,
-                   "eta_fa": "۲۲ مارس ۲۰۲۵", "eta_en": "March 22, 2025"},
-    "ORD-789012": {"status_fa": "تحویل داده شده", "status_en": "Delivered",
-                   "tracking": "TRK-9876543210",
-                   "eta_fa": "۱۸ مارس ۲۰۲۵", "eta_en": "March 18, 2025"},
-    "ORD-555555": {"status_fa": "لغو شده", "status_en": "Cancelled",
-                   "tracking": None,
-                   "eta_fa": "بازگشت وجه در حال انجام", "eta_en": "Refund in progress"},
+    "ORD-482910": {"s_fa": "ارسال شده", "s_en": "Shipped", "t": "TRK-1234567890"},
+    "ORD-123456": {"s_fa": "در حال پردازش", "s_en": "Processing", "t": None},
 }
 
 
@@ -608,9 +23,6 @@ def detect_lang(text):
     if not text:
         return "en"
     if re.search(r'[\u0600-\u06FF]', text):
-        return "fa"
-    persian_words = ["سلام", "ممنون", "سفارش", "قیمت", "ارسال", "کمک"]
-    if any(w in text for w in persian_words):
         return "fa"
     return "en"
 
@@ -629,11 +41,9 @@ def get_oid(text):
 def search_faq(query, lang):
     q = norm(query)
     if not q:
-        return "لطفاً سوال خود را بنویسید." if lang == "fa" else "Please type your question."
-
+        return None
     q_words = set(q.split())
     results = []
-
     for item in FAQ_DATA:
         if lang == "fa":
             target_q = norm(item["q_fa"])
@@ -641,18 +51,14 @@ def search_faq(query, lang):
         else:
             target_q = norm(item["q_en"])
             keywords = item["kw_en"]
-
         target_words = set(target_q.split())
         overlap = len(q_words & target_words) / max(len(q_words), 1)
         kw_match = sum(1 for k in keywords if k in q)
         kw_score = min(kw_match * 0.4, 1.0)
         score = max(overlap, kw_score)
-
-        if score > 0.25:
+        if score > 0.4:
             results.append((score, item))
-
     results.sort(reverse=True, key=lambda x: x[0])
-
     if results:
         parts = []
         for _, item in results[:2]:
@@ -661,107 +67,63 @@ def search_faq(query, lang):
             else:
                 parts.append("Q: " + item["q_en"] + "\nA: " + item["a_en"])
         return "\n\n".join(parts)
-
-    if lang == "fa":
-        return "متأسفم، پاسخ مناسبی پیدا نکردم. لطفاً سوالتان را بازنویسی کنید یا کلمه «انسان» را بنویسید."
-    return "Sorry, no answer found. Please rephrase or type 'human'."
+    return None
 
 
 def check_order(oid, lang):
-    if not oid:
-        return "لطفاً شماره سفارش معتبر وارد کنید." if lang == "fa" else "Please provide a valid order ID."
-
     order = ORDERS.get(oid.upper())
     if not order:
-        if lang == "fa":
-            return "سفارش " + oid + " در سیستم پیدا نشد.\nلطفاً شماره را بررسی کنید."
-        return "Order " + oid + " was not found."
-
+        return "سفارش " + oid + " پیدا نشد." if lang == "fa" else "Order " + oid + " not found."
     if lang == "fa":
-        lines = ["سفارش " + oid, "وضعیت: " + order["status_fa"]]
-        if order["tracking"]:
-            lines.append("کد رهگیری: " + order["tracking"])
-        lines.append("زمان تحویل: " + order["eta_fa"])
+        lines = ["سفارش " + oid, "وضعیت: " + order["s_fa"]]
+        if order["t"]:
+            lines.append("کد رهگیری: " + order["t"])
     else:
-        lines = ["Order " + oid, "Status: " + order["status_en"]]
-        if order["tracking"]:
-            lines.append("Tracking: " + order["tracking"])
-        lines.append("ETA: " + order["eta_en"])
-
+        lines = ["Order " + oid, "Status: " + order["s_en"]]
+        if order["t"]:
+            lines.append("Tracking: " + order["t"])
     return "\n".join(lines)
 
 
 def escalate(reason, lang):
     if lang == "fa":
-        return "شما به اپراتور انسانی متصل می‌شوید.\nدلیل: " + reason + "\nزمان انتظار: حدود ۱۵ دقیقه."
-    return "Transferring to a human agent.\nReason: " + reason + "\nWait: ~15 min."
-
-
-HUMAN_KW = ["human", "agent", "person", "manager", "operator",
-            "انسان", "اپراتور", "پشتیبان", "مدیر", "کارشناس"]
-GREETING_KW = ["hello", "hi", "hey", "greetings",
-               "سلام", "درود", "صبح بخیر", "عصر بخیر"]
-THANKS_KW = ["thanks", "thank you", "thx",
-             "ممنون", "متشکر", "سپاس", "مرسی"]
-BYE_KW = ["bye", "goodbye", "farewell",
-          "خداحافظ", "بدرود"]
-
-
-def route_intent(text):
-    if not text or not text.strip():
-        return "empty", text, "en"
-
-    lang = detect_lang(text)
-    tl = text.lower().strip()
-    words = tl.split()
-
-    oid = get_oid(text)
-    if oid:
-        return "order", oid, lang
-
-    if any(k in tl for k in HUMAN_KW):
-        return "human", text, lang
-
-    if any(k in tl for k in THANKS_KW):
-        return "thanks", text, lang
-
-    if any(k in tl for k in BYE_KW):
-        return "bye", text, lang
-
-    if len(words) <= 4 and any(k in tl for k in GREETING_KW):
-        return "greeting", text, lang
-
-    return "faq", text, lang
+        return "شما به اپراتور انسانی متصل می‌شوید."
+    return "Transferring to a human agent."
 
 
 def process(query):
     if not query or not query.strip():
         return "Please type a message."
-
-    intent, data, lang = route_intent(query)
-
-    if intent == "order":
-        return check_order(data, lang)
-
-    if intent == "human":
-        return escalate(data, lang)
-
-    if intent == "thanks":
-        return "خواهش می‌کنم! سوال دیگری دارید؟" if lang == "fa" else "You're welcome!"
-
-    if intent == "bye":
-        return "خداحافظ! روز خوبی داشته باشید." if lang == "fa" else "Goodbye!"
-
-    if intent == "greeting":
-        if lang == "fa":
-            return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟"
-        return "Hello! 👋 Welcome to DevStudio. How can I help you?"
-
-    return search_faq(data, lang)
+    lang = detect_lang(query)
+    tl = query.lower().strip()
+    words = tl.split()
+    
+    oid = get_oid(query)
+    if oid:
+        return check_order(oid, lang)
+    
+    if any(k in tl for k in ["human", "agent", "انسان", "اپراتور"]):
+        return escalate(query, lang)
+    
+    if any(k in tl for k in ["thanks", "ممنون", "سپاس"]):
+        return "خواهش می‌کنم!" if lang == "fa" else "You're welcome!"
+    
+    if any(k in tl for k in ["bye", "خداحافظ"]):
+        return "خداحافظ!" if lang == "fa" else "Goodbye!"
+    
+    if len(words) <= 4 and any(k in tl for k in ["hello", "hi", "سلام", "درود"]):
+        return "سلام! 👋 به DevStudio خوش آمدید." if lang == "fa" else "Hello! 👋 Welcome to DevStudio."
+    
+    faq = search_faq(query, lang)
+    if faq:
+        return faq
+    
+    if lang == "fa":
+        return "متأسفم، پاسخ مناسبی پیدا نکردم. لطفاً سوالتان را بازنویسی کنید."
+    return "Sorry, no answer found."
 
 
 class H(BaseHTTPRequestHandler):
-
     def log_message(self, *a):
         pass
 
@@ -780,7 +142,7 @@ class H(BaseHTTPRequestHandler):
                 "status": "healthy",
                 "service": "DevStudio Bot v2.1",
                 "cors": "enabled"
-            }, ensure_ascii=False))
+            }))
         else:
             self._s(404, "text/plain", "Not Found")
 
@@ -793,17 +155,14 @@ class H(BaseHTTPRequestHandler):
                 data = json.loads(body)
                 message = data.get("message", "")
                 reply = process(message)
-                intent, _, lang = route_intent(message)
                 response = {
                     "reply": reply,
-                    "intent": intent,
-                    "lang": lang,
-                    "timestamp": datetime.now().isoformat(),
-                    "user_id": data.get("user_id", "anonymous")
+                    "lang": detect_lang(message),
+                    "timestamp": datetime.now().isoformat()
                 }
                 self._s(200, "application/json", json.dumps(response, ensure_ascii=False))
             except Exception as e:
-                self._s(500, "application/json", json.dumps({"error": str(e)}, ensure_ascii=False))
+                self._s(500, "application/json", json.dumps({"error": str(e)}))
         else:
             self._s(404, "text/plain", "Not Found")
 
@@ -820,64 +179,10 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    print("=" * 55)
-    print("  DevStudio Support Bot v2.1")
-    print("  CORS: Enabled")
-    print("  Port: " + str(port))
-    print("=" * 55)
+    print("=" * 50)
+    print("DevStudio Bot v2.1 - Port: " + str(port))
+    print("=" * 50)
     try:
         HTTPServer(("0.0.0.0", port), H).serve_forever()
     except KeyboardInterrupt:
-        print("")
-        print("Server stopped.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        print("Stopped")
