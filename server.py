@@ -2,22 +2,27 @@
 import json
 import re
 import os
+import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from urllib.parse import urlparse
 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+SUPPORT_EMAIL = "sadegh6811@gmail.com"
+SUPPORT_PHONE = "+989189376811"
 
 FAQ_DATA = [
-    {"q_fa": "سیاست بازگشت کالا چیست؟", "a_fa": "۳۰ روز ضمانت بازگشت وجه داریم.", "q_en": "What is your refund policy?", "a_en": "30-day money-back guarantee.", "kw_fa": ["بازگشت", "وجه", "پول"], "kw_en": ["refund", "return"]},
-    {"q_fa": "چه خدماتی ارائه می‌دهید؟", "a_fa": "پایتون، اپلیکیشن موبایل، طراحی وب و هوش مصنوعی.", "q_en": "What services do you offer?", "a_en": "Python, mobile apps, web design, and AI.", "kw_fa": ["خدمات", "ارائه"], "kw_en": ["services", "offer"]},
-    {"q_fa": "قیمت‌ها چگونه است؟", "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند.", "q_en": "What is your pricing?", "a_en": "Projects start from $500.", "kw_fa": ["قیمت", "هزینه"], "kw_en": ["price", "cost"]},
+    {"q_fa": "سیاست بازگشت کالا چیست", "a_fa": "۳۰ روز ضمانت بازگشت وجه بدون سوال داریم.", "q_en": "What is your refund policy", "a_en": "30-day money-back guarantee.", "kw_fa": ["بازگشت", "وجه", "مرجوع"], "kw_en": ["refund", "return"]},
+    {"q_fa": "چه خدماتی ارائه می‌دهید", "a_fa": "برنامه‌نویسی پایتون، اپلیکیشن موبایل، طراحی وب و هوش مصنوعی.", "q_en": "What services do you offer", "a_en": "Python, mobile apps, web design, and AI solutions.", "kw_fa": ["خدمات", "ارائه"], "kw_en": ["services", "offer"]},
+    {"q_fa": "قیمت‌ها چگونه است", "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند.", "q_en": "What is your pricing", "a_en": "Projects start from $500.", "kw_fa": ["قیمت", "هزینه"], "kw_en": ["price", "cost"]},
+    {"q_fa": "چگونه با پشتیبانی تماس بگیرم", "a_fa": "ایمیل: sadegh6811@gmail.com\nتلفن: +989189376811", "q_en": "How to contact support", "a_en": "Email: sadegh6811@gmail.com\nPhone: +989189376811", "kw_fa": ["تماس", "پشتیبانی", "شماره", "تلفن"], "kw_en": ["contact", "support", "phone"]},
 ]
 
 ORDERS = {
     "ORD-482910": {"s_fa": "ارسال شده", "s_en": "Shipped", "t": "TRK-1234567890"},
     "ORD-123456": {"s_fa": "در حال پردازش", "s_en": "Processing", "t": None},
 }
-
 
 def detect_lang(text):
     if not text:
@@ -26,17 +31,14 @@ def detect_lang(text):
         return "fa"
     return "en"
 
-
 def norm(s):
     s = s.lower().strip()
     s = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', s)
     return re.sub(r'\s+', ' ', s)
 
-
 def get_oid(text):
     m = re.search(r'ORD[-\s]?(\d{4,})', text, re.IGNORECASE)
     return "ORD-" + m.group(1) if m else None
-
 
 def search_faq(query, lang):
     q = norm(query)
@@ -54,21 +56,15 @@ def search_faq(query, lang):
         target_words = set(target_q.split())
         overlap = len(q_words & target_words) / max(len(q_words), 1)
         kw_match = sum(1 for k in keywords if k in q)
-        kw_score = min(kw_match * 0.4, 1.0)
+        kw_score = min(kw_match * 0.5, 1.0)
         score = max(overlap, kw_score)
         if score > 0.4:
             results.append((score, item))
     results.sort(reverse=True, key=lambda x: x[0])
     if results:
-        parts = []
-        for _, item in results[:2]:
-            if lang == "fa":
-                parts.append("س: " + item["q_fa"] + "\nج: " + item["a_fa"])
-            else:
-                parts.append("Q: " + item["q_en"] + "\nA: " + item["a_en"])
-        return "\n\n".join(parts)
+        item = results[0][1]
+        return item["a_fa"] if lang == "fa" else item["a_en"]
     return None
-
 
 def check_order(oid, lang):
     order = ORDERS.get(oid.upper())
@@ -84,12 +80,56 @@ def check_order(oid, lang):
             lines.append("Tracking: " + order["t"])
     return "\n".join(lines)
 
-
-def escalate(reason, lang):
-    if lang == "fa":
-        return "شما به اپراتور انسانی متصل می‌شوید."
-    return "Transferring to a human agent."
-
+def ask_groq(message, lang):
+    if not GROQ_API_KEY:
+        return None
+    system_prompt = (
+        "You are the customer support assistant for DevStudio, an international software development agency.\n\n"
+        "About DevStudio:\n"
+        "- Services: Python development, mobile apps (iOS/Android), web design, AI solutions\n"
+        "- Pricing: Projects start from $500. Typical range: $1,500 - $12,000\n"
+        "- Timeline: Simple websites 2-4 weeks, complex apps 2-6 months\n"
+        "- Tech stack: Python, Django, FastAPI, React, Next.js, React Native\n"
+        "- 250+ projects delivered, 40+ countries\n"
+        "- Support email: sadegh6811@gmail.com\n"
+        "- Support phone: +989189376811\n"
+        "- Payment: USDT (TRC20), Zarinpal\n"
+        "- Refund: 30-day money-back guarantee\n\n"
+        "RULES:\n"
+        "1. Reply in the SAME language as the customer\n"
+        "2. Be concise (2-4 sentences max)\n"
+        "3. Be friendly and professional\n"
+        "4. If asked about pricing, give a range\n"
+        "5. Never make up specific project details\n"
+        "6. If customer wants a human, tell them to email sadegh6811@gmail.com or call +989189376811\n"
+        "7. Contact email is: sadegh6811@gmail.com\n"
+        "8. Contact phone is: +989189376811"
+    )
+    try:
+        payload = {
+            "model": GROQ_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.5,
+            "max_tokens": 400
+        }
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + GROQ_API_KEY,
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print("[Groq Error]", str(e))
+        return None
 
 def process(query):
     if not query or not query.strip():
@@ -97,31 +137,28 @@ def process(query):
     lang = detect_lang(query)
     tl = query.lower().strip()
     words = tl.split()
-    
     oid = get_oid(query)
     if oid:
         return check_order(oid, lang)
-    
     if any(k in tl for k in ["human", "agent", "انسان", "اپراتور"]):
-        return escalate(query, lang)
-    
-    if any(k in tl for k in ["thanks", "ممنون", "سپاس"]):
-        return "خواهش می‌کنم!" if lang == "fa" else "You're welcome!"
-    
+        if lang == "fa":
+            return "شما به اپراتور انسانی متصل می‌شوید.\nایمیل: sadegh6811@gmail.com\nتلفن: +989189376811"
+        return "Transferring to a human agent.\nEmail: sadegh6811@gmail.com\nPhone: +989189376811"
+    if any(k in tl for k in ["thanks", "ممنون", "سپاس", "مرسی"]):
+        return "خواهش می‌کنم! سوال دیگری دارید؟" if lang == "fa" else "You're welcome!"
     if any(k in tl for k in ["bye", "خداحافظ"]):
         return "خداحافظ!" if lang == "fa" else "Goodbye!"
-    
-    if len(words) <= 4 and any(k in tl for k in ["hello", "hi", "سلام", "درود"]):
-        return "سلام! 👋 به DevStudio خوش آمدید." if lang == "fa" else "Hello! 👋 Welcome to DevStudio."
-    
+    if len(words) <= 5 and any(k in tl for k in ["hello", "hi", "سلام", "درود"]):
+        return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟" if lang == "fa" else "Hello! 👋 Welcome to DevStudio."
     faq = search_faq(query, lang)
     if faq:
         return faq
-    
+    groq_answer = ask_groq(query, lang)
+    if groq_answer:
+        return groq_answer
     if lang == "fa":
-        return "متأسفم، پاسخ مناسبی پیدا نکردم. لطفاً سوالتان را بازنویسی کنید."
-    return "Sorry, no answer found."
-
+        return "متأسفم، پاسخ مناسبی پیدا نکردم.\nلطفاً تماس بگیرید: sadegh6811@gmail.com | +989189376811"
+    return "Sorry, no answer found.\nContact us: sadegh6811@gmail.com | +989189376811"
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -140,9 +177,12 @@ class H(BaseHTTPRequestHandler):
         if path in ["/", "/health", "/api/info"]:
             self._s(200, "application/json", json.dumps({
                 "status": "healthy",
-                "service": "DevStudio Bot v2.1",
-                "cors": "enabled"
-            }))
+                "service": "DevStudio Bot v3.1",
+                "cors": "enabled",
+                "groq": "enabled" if GROQ_API_KEY else "disabled",
+                "email": SUPPORT_EMAIL,
+                "phone": SUPPORT_PHONE
+            }, ensure_ascii=False))
         else:
             self._s(404, "text/plain", "Not Found")
 
@@ -176,11 +216,13 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body.encode("utf-8"))
 
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print("=" * 50)
-    print("DevStudio Bot v2.1 - Port: " + str(port))
+    print("DevStudio Bot v3.1 - Port: " + str(port))
+    print("Groq: " + ("Enabled" if GROQ_API_KEY else "Disabled"))
+    print("Email: " + SUPPORT_EMAIL)
+    print("Phone: " + SUPPORT_PHONE)
     print("=" * 50)
     try:
         HTTPServer(("0.0.0.0", port), H).serve_forever()
