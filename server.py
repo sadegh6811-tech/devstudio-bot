@@ -8,7 +8,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.1-8b-instant"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 SUPPORT_EMAIL = "sadegh6811@gmail.com"
 SUPPORT_PHONE = "+989189376811"
 
