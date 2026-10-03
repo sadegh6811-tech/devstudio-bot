@@ -27,6 +27,17 @@ ORDERS = {
 def detect_lang(text):
     if not text:
         return "en"
+    # الفبای عربی مخصوص (حروفی که در فارسی نیستند)
+    arabic_only = re.search(r'[\u0621\u0622\u0623\u0625\u0627\u0629\u062f\u0630\u0631\u0632\u0633\u0634\u0635\u0636\u0637\u0638\u0639\u063a\u0641\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u064a\u064b\u064c\u064d\u064e\u064f\u0650\u0651\u0652\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u066a]', text)
+    # اگر متن شامل کلمات خاص عربی باشد
+    arabic_words = ["مرحبا", "كم", "تكلفة", "الموقع", "شكرا", "ما", "هل", "من", "ال", "على", "في", "كيف", "خدمات"]
+    has_arabic_word = any(w in text for w in arabic_words)
+    # اگر حروف فارسی خاص باشد → فارسی
+    persian_specific = re.search(r'[\u067e\u0686\u0698\u06a9\u06af\u06cc]', text)
+    if persian_specific:
+        return "fa"
+    if arabic_only or has_arabic_word:
+        return "ar"
     if re.search(r'[\u0600-\u06FF]', text):
         return "fa"
     return "en"
@@ -124,7 +135,7 @@ def ask_groq(message, lang):
             },
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=20) as response:
+        with urllib.request.urlopen(req, timeout=45) as response:
             data = json.loads(response.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
