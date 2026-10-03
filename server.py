@@ -1,4 +1,4 @@
-ķķķ#!/usr/bin/env python3
+#!/usr/bin/env python3
 import json, re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
