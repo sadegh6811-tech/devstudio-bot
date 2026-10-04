@@ -69,7 +69,7 @@ def search_faq(query, lang):
         kw_match = sum(1 for k in keywords if k in q)
         kw_score = min(kw_match * 0.5, 1.0)
         score = max(overlap, kw_score)
-        if score > 0.4:
+        if score > 0.7:
             results.append((score, item))
     results.sort(reverse=True, key=lambda x: x[0])
     if results:
@@ -147,10 +147,11 @@ def process(query):
         return "خواهش می‌کنم! سوال دیگری دارید؟" if lang == "fa" else "You're welcome!"
     if any(k in tl for k in ["bye", "خداحافظ"]):
         return "خداحافظ!" if lang == "fa" else "Goodbye!"
-    greeting_only = len(words) <= 3 and any(k in tl for k in ["hello", "hi", "hey", "سلام", "درود"])
-    has_question = any(k in tl for k in ["قیمت", "هزینه", "چقدر", "چیه", "چیست", "?", "؟", "price", "cost", "how much", "خدمات", "services", "کار"])
-    if greeting_only and not has_question:
-        return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟" if lang == "fa" else "Hello! 👋 Welcome to DevStudio."
+    pure_greeting_words = ["hello", "hi", "hey", "سلام", "درود", "صبح بخیر", "عصر بخیر"]
+    if len(words) <= 2 and any(w in tl for w in pure_greeting_words):
+        if lang == "fa":
+            return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟"
+        return "Hello! 👋 Welcome to DevStudio."
     faq = search_faq(query, lang)
     if faq:
         return faq
