@@ -87,7 +87,7 @@ def check_order(oid, lang):
 
 def ask_groq(message, lang):
     if not GROQ_API_KEY:
-        print("[Groq] No API key set")
+        print("[Groq] No API key set", flush=True)
         return None
     system_prompt = (
         "You are DevStudio's customer support assistant. DevStudio is an international software development agency.\n"
@@ -120,10 +120,10 @@ def ask_groq(message, lang):
         with urllib.request.urlopen(req, timeout=45) as response:
             data = json.loads(response.read().decode("utf-8"))
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            print("[Groq] Response length:", len(content), "Lang:", lang)
+            print("[Groq] Response length:", len(content), "Lang:", lang, flush=True)
             return content if content else None
     except Exception as e:
-        print("[Groq Error]", type(e).__name__, str(e))
+        print("[Groq Error]", type(e).__name__, str(e), flush=True)
         return None
 
 def process(query):
@@ -151,7 +151,7 @@ def process(query):
         return "خداحافظ!" if lang == "fa" else "Goodbye!"
     
     greeting_words = ["hello", "hi", "hey", "سلام", "درود", "صبح بخیر", "عصر بخیر"]
-    if len(words) <= 2 and any(w in tl for w in greeting_words):
+    if len(words) <= 6 and any(w in tl for w in greeting_words):
         if lang == "fa":
             return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟"
         return "Hello! 👋 Welcome to DevStudio. How can I help you?"
@@ -164,11 +164,15 @@ def process(query):
     if groq_answer:
         return groq_answer
     
+    if not GROQ_API_KEY:
+        reason = "no key"
+    else:
+        reason = "groq fail"
     if lang == "fa":
-        return "متأسفم، پاسخ مناسبی پیدا نکردم.\nلطفاً تماس بگیرید: sadegh6811@gmail.com | +989189376811"
+        return f"متأسفم [{reason}].\nلطفاً تماس بگیرید: sadegh6811@gmail.com | +989189376811"
     if lang == "ar":
-        return "عذراً، لم أجد إجابة مناسبة.\nيرجى التواصل: sadegh6811@gmail.com"
-    return "Sorry, no answer found.\nContact: sadegh6811@gmail.com | +989189376811"
+        return f"عذراً [{reason}].\nيرجى التواصل: sadegh6811@gmail.com"
+    return f"Sorry [{reason}].\nContact: sadegh6811@gmail.com | +989189376811"
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -204,7 +208,7 @@ class H(BaseHTTPRequestHandler):
                 body = self.rfile.read(length).decode("utf-8")
                 data = json.loads(body)
                 message = data.get("message", "")
-                print("[Chat] Received:", message[:50])
+                print("[Chat] Received:", message[:50], flush=True)
                 reply = process(message)
                 response = {
                     "reply": reply,
@@ -213,7 +217,7 @@ class H(BaseHTTPRequestHandler):
                 }
                 self._s(200, "application/json", json.dumps(response, ensure_ascii=False))
             except Exception as e:
-                print("[Chat Error]", str(e))
+                print("[Chat Error]", str(e), flush=True)
                 self._s(500, "application/json", json.dumps({"error": str(e)}))
         else:
             self._s(404, "text/plain", "Not Found")
