@@ -13,10 +13,8 @@ SUPPORT_EMAIL = "sadegh6811@gmail.com"
 SUPPORT_PHONE = "+989189376811"
 
 FAQ_DATA = [
-    {"q_fa": "سیاست بازگشت کالا چیست", "a_fa": "۳۰ روز ضمانت بازگشت وجه بدون سوال داریم.", "q_en": "What is your refund policy", "a_en": "30-day money-back guarantee.", "kw_fa": ["بازگشت", "وجه", "مرجوع"], "kw_en": ["refund", "return"]},
-    {"q_fa": "چه خدماتی ارائه می‌دهید", "a_fa": "برنامه‌نویسی پایتون، اپلیکیشن موبایل، طراحی وب و هوش مصنوعی.", "q_en": "What services do you offer", "a_en": "Python, mobile apps, web design, and AI solutions.", "kw_fa": ["خدمات", "ارائه"], "kw_en": ["services", "offer"]},
-    {"q_fa": "قیمت‌ها چگونه است", "a_fa": "پروژه‌ها از ۵۰۰ دلار شروع می‌شوند.", "q_en": "What is your pricing", "a_en": "Projects start from $500.", "kw_fa": ["قیمت", "هزینه"], "kw_en": ["price", "cost"]},
-    {"q_fa": "چگونه با پشتیبانی تماس بگیرم", "a_fa": "ایمیل: sadegh6811@gmail.com\nتلفن: +989189376811", "q_en": "How to contact support", "a_en": "Email: sadegh6811@gmail.com\nPhone: +989189376811", "kw_fa": ["تماس", "پشتیبانی", "شماره", "تلفن"], "kw_en": ["contact", "support", "phone"]},
+    {"q_fa": "چه خدماتی ارائه می‌دهید", "a_fa": "برنامه‌نویسی پایتون، اپلیکیشن موبایل، طراحی وب و هوش مصنوعی.", "q_en": "What services do you offer", "a_en": "Python, mobile apps, web design, and AI solutions.", "kw_fa": ["خدمات", "ارائه", "چه کار"], "kw_en": ["services", "offer"]},
+    {"q_fa": "چگونه با پشتیبانی تماس بگیرم", "a_fa": "ایمیل: sadegh6811@gmail.com\nتلفن: +989189376811", "q_en": "How to contact support", "a_en": "Email: sadegh6811@gmail.com\nPhone: +989189376811", "kw_fa": ["تماس", "پشتیبانی", "ارتباط"], "kw_en": ["contact", "support"]},
 ]
 
 ORDERS = {
@@ -27,16 +25,12 @@ ORDERS = {
 def detect_lang(text):
     if not text:
         return "en"
-    # الفبای عربی مخصوص (حروفی که در فارسی نیستند)
-    arabic_only = re.search(r'[\u0621\u0622\u0623\u0625\u0627\u0629\u062f\u0630\u0631\u0632\u0633\u0634\u0635\u0636\u0637\u0638\u0639\u063a\u0641\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u064a\u064b\u064c\u064d\u064e\u064f\u0650\u0651\u0652\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u066a]', text)
-    # اگر متن شامل کلمات خاص عربی باشد
-    arabic_words = ["مرحبا", "كم", "تكلفة", "الموقع", "شكرا", "ما", "هل", "من", "ال", "على", "في", "كيف", "خدمات"]
+    arabic_words = ["مرحبا", "كم", "تكلفة", "الموقع", "شكرا", "كيف", "خدمات"]
     has_arabic_word = any(w in text for w in arabic_words)
-    # اگر حروف فارسی خاص باشد → فارسی
     persian_specific = re.search(r'[\u067e\u0686\u0698\u06a9\u06af\u06cc]', text)
     if persian_specific:
         return "fa"
-    if arabic_only or has_arabic_word:
+    if has_arabic_word:
         return "ar"
     if re.search(r'[\u0600-\u06FF]', text):
         return "fa"
@@ -69,7 +63,7 @@ def search_faq(query, lang):
         kw_match = sum(1 for k in keywords if k in q)
         kw_score = min(kw_match * 0.5, 1.0)
         score = max(overlap, kw_score)
-        if score > 0.7:
+        if score > 0.6:
             results.append((score, item))
     results.sort(reverse=True, key=lambda x: x[0])
     if results:
@@ -93,16 +87,16 @@ def check_order(oid, lang):
 
 def ask_groq(message, lang):
     if not GROQ_API_KEY:
+        print("[Groq] No API key set")
         return None
     system_prompt = (
-        "You are DevStudio's support assistant. DevStudio is an international software agency.\n"
-        "Services: Python, mobile apps, web design, AI. Pricing: from $500.\n"
-        "Contact: sadegh6811@gmail.com | +989189376811\n\n"
-        "CRITICAL: Reply in the EXACT same language as the user.\n"
-        "- Persian text -> Persian reply\n"
-        "- Arabic text -> Arabic reply\n"
-        "- English text -> English reply\n"
-        "Be concise (2-3 sentences). Be helpful."
+        "You are DevStudio's customer support assistant. DevStudio is an international software development agency.\n"
+        "Services: Python development, mobile apps, web design, AI solutions.\n"
+        "Pricing: Projects start from $500. Range: $500 to $12,000+ depending on complexity.\n"
+        "Timeline: Simple sites 2-4 weeks, complex apps 2-6 months.\n"
+        "Support email: sadegh6811@gmail.com | Phone: +989189376811\n\n"
+        "CRITICAL: Reply in EXACTLY the same language as the customer's message.\n"
+        "Be concise (2-3 sentences). Be friendly and helpful."
     )
     try:
         payload = {
@@ -125,9 +119,11 @@ def ask_groq(message, lang):
         )
         with urllib.request.urlopen(req, timeout=45) as response:
             data = json.loads(response.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            print("[Groq] Response length:", len(content), "Lang:", lang)
+            return content if content else None
     except Exception as e:
-        print("[Groq Error]", str(e))
+        print("[Groq Error]", type(e).__name__, str(e))
         return None
 
 def process(query):
@@ -136,31 +132,43 @@ def process(query):
     lang = detect_lang(query)
     tl = query.lower().strip()
     words = tl.split()
+    
     oid = get_oid(query)
     if oid:
         return check_order(oid, lang)
+    
     if any(k in tl for k in ["human", "agent", "انسان", "اپراتور"]):
         if lang == "fa":
             return "شما به اپراتور انسانی متصل می‌شوید.\nایمیل: sadegh6811@gmail.com\nتلفن: +989189376811"
-        return "Transferring to a human agent.\nEmail: sadegh6811@gmail.com\nPhone: +989189376811"
-    if any(k in tl for k in ["thanks", "ممنون", "سپاس", "مرسی"]):
-        return "خواهش می‌کنم! سوال دیگری دارید؟" if lang == "fa" else "You're welcome!"
-    if any(k in tl for k in ["bye", "خداحافظ"]):
+        if lang == "ar":
+            return "سيتم تحويلك إلى وكيل بشري.\nالبريد: sadegh6811@gmail.com"
+        return "Transferring to a human agent.\nEmail: sadegh6811@gmail.com"
+    
+    if any(k in tl for k in ["thanks", "thank", "ممنون", "سپاس", "مرسی", "شكرا"]):
+        return "خواهش می‌کنم!" if lang == "fa" else "You're welcome!"
+    
+    if any(k in tl for k in ["bye", "goodbye", "خداحافظ", "بدرود"]):
         return "خداحافظ!" if lang == "fa" else "Goodbye!"
-    pure_greeting_words = ["hello", "hi", "hey", "سلام", "درود", "صبح بخیر", "عصر بخیر"]
-    if len(words) <= 2 and any(w in tl for w in pure_greeting_words):
+    
+    greeting_words = ["hello", "hi", "hey", "سلام", "درود", "صبح بخیر", "عصر بخیر"]
+    if len(words) <= 2 and any(w in tl for w in greeting_words):
         if lang == "fa":
             return "سلام! 👋 به DevStudio خوش آمدید. چطور می‌توانم کمکتان کنم؟"
-        return "Hello! 👋 Welcome to DevStudio."
+        return "Hello! 👋 Welcome to DevStudio. How can I help you?"
+    
     faq = search_faq(query, lang)
     if faq:
         return faq
+    
     groq_answer = ask_groq(query, lang)
     if groq_answer:
         return groq_answer
+    
     if lang == "fa":
         return "متأسفم، پاسخ مناسبی پیدا نکردم.\nلطفاً تماس بگیرید: sadegh6811@gmail.com | +989189376811"
-    return "Sorry, no answer found.\nContact us: sadegh6811@gmail.com | +989189376811"
+    if lang == "ar":
+        return "عذراً، لم أجد إجابة مناسبة.\nيرجى التواصل: sadegh6811@gmail.com"
+    return "Sorry, no answer found.\nContact: sadegh6811@gmail.com | +989189376811"
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -179,7 +187,7 @@ class H(BaseHTTPRequestHandler):
         if path in ["/", "/health", "/api/info"]:
             self._s(200, "application/json", json.dumps({
                 "status": "healthy",
-                "service": "DevStudio Bot v3.1",
+                "service": "DevStudio Bot v3.2",
                 "cors": "enabled",
                 "groq": "enabled" if GROQ_API_KEY else "disabled",
                 "email": SUPPORT_EMAIL,
@@ -196,6 +204,7 @@ class H(BaseHTTPRequestHandler):
                 body = self.rfile.read(length).decode("utf-8")
                 data = json.loads(body)
                 message = data.get("message", "")
+                print("[Chat] Received:", message[:50])
                 reply = process(message)
                 response = {
                     "reply": reply,
@@ -204,6 +213,7 @@ class H(BaseHTTPRequestHandler):
                 }
                 self._s(200, "application/json", json.dumps(response, ensure_ascii=False))
             except Exception as e:
+                print("[Chat Error]", str(e))
                 self._s(500, "application/json", json.dumps({"error": str(e)}))
         else:
             self._s(404, "text/plain", "Not Found")
@@ -221,13 +231,11 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print("=" * 50)
-    print("DevStudio Bot v3.1 - Port: " + str(port))
+    print("DevStudio Bot v3.2 - Port: " + str(port))
     print("Groq: " + ("Enabled" if GROQ_API_KEY else "Disabled"))
     print("Email: " + SUPPORT_EMAIL)
-    print("Phone: " + SUPPORT_PHONE)
     print("=" * 50)
     try:
         HTTPServer(("0.0.0.0", port), H).serve_forever()
     except KeyboardInterrupt:
         print("Stopped")
-# v3.2 update Sun Oct  4 05:41:18 +0330 2026
