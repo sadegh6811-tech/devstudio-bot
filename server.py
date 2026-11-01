@@ -22,8 +22,8 @@ def health(): return {"status": "ok"}
 
 @app.post("/api/auth/register")
 def register(req: AuthRequest):
-    return {"status": "ok", "message": "User registered successfully"}
+    return {"success": True, "token": "mock_token_123", "message": "User registered"}
 
 @app.post("/api/auth/login")
 def login(req: AuthRequest):
-    return {"status": "ok", "token": "mock_token_123", "message": "Logged in"}
+    return {"success": True, "token": "mock_token_123", "message": "Logged in"}
