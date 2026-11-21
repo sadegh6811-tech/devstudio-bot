@@ -2,7 +2,7 @@
   "services": {
     "web": {
       "root": ".",
-      "entrypoint": "server.py"
+      "entrypoint": "main.py"
     }
   },
   "rewrites": [
